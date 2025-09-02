@@ -1,0 +1,276 @@
+---
+title: "Bio data analysis"
+author: "Stephen Noell"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE, 
+                      warning = FALSE,
+                      fig.align = "center",
+                      fig.width = 10,
+                      fig.height = 6)
+```
+
+
+```{r Libraries and seed}
+
+# Libraries
+library("tidyverse")       # data wrangling and visualisation
+library("phyloseq")        # analysis of microbial communities
+library("vegan")           # ecological multivariate analyses
+library("qwraps2")         # quick summary statistics
+options(qwraps2_markup = "markdown") # define document type
+library("patchwork")       # plots together
+library("paletteer") #color package
+library("microbiome") #for analyzing phyloseq objects
+library("svglite") #for saving SVGs
+library("ggpubr") #for saving plots
+library("here")            # set the path to the folder 
+
+set.seed(57)
+```
+
+
+```{r Load the data}
+# Load the final phyloseq object from the DADA2 pipeline
+physeq.es <- readRDS("physeq.es")
+
+```
+
+### Sequences and ASVs data
+
+```{r ASVs and reads statistics}
+
+# Inspect number of reads and ASVs
+
+colSums.asv.df <- data.frame(colSums(otu_table(physeq.es))) %>%
+  tibble::rownames_to_column("ASV")
+
+plot_asvs <- ggplot(colSums.asv.df, aes(x = reorder(ASV, -colSums.otu_table.physeq.es..), y = colSums.otu_table.physeq.es..)) + 
+  geom_bar(stat = "identity") +
+  ylab("ASVs") +
+  xlab("") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()
+    )
+
+# Inspect number of sequences
+
+rowSums.asv.df <- data.frame(rowSums(otu_table(physeq.es))) %>%
+  rownames_to_column("Samples")
+
+plot_reads <- ggplot(rowSums.asv.df, aes(x = reorder(Samples, -rowSums.otu_table.physeq.es..), y =
+               rowSums.otu_table.physeq.es..)) +
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  ylab("Reads") +
+  xlab("")
+
+plot_asvs | plot_reads
+
+summary1 <-
+  list("ASVs" = 
+         list("min" = ~ min(colSums.otu_table.physeq.es..),
+            "median" = ~ median(colSums.otu_table.physeq.es..),
+            "max"  = ~ max(colSums.otu_table.physeq.es..))
+            )
+
+summary_table(colSums.asv.df, summary1)
+
+summary2 <-
+  list("Reads" = 
+         list("min" = ~ min(rowSums.otu_table.physeq.es..),
+            "median" = ~ median(rowSums.otu_table.physeq.es..),
+            "max"  = ~ max(rowSums.otu_table.physeq.es..))
+            )
+
+summary_table(rowSums.asv.df, summary2)
+```
+
+```{r}
+#make boxplot comparing reads per time point
+
+sample_data_df <- read.csv("sample_data.csv")
+
+# Compute total reads per sample
+reads_per_sample <- data.frame(Sample = sample_names(physeq.es),
+                                TotalReads = sample_sums(physeq.es))
+
+# Combine with sample metadata (including Ice.thickness)
+plot_df <- dplyr::left_join(sample_data_df, reads_per_sample, by = "Sample")
+
+time_reads <- ggplot(plot_df, aes(x = Ice.thickness, y = TotalReads)) +
+  geom_boxplot(aes(color = Ice.thickness)) +
+  geom_jitter(size = 2) +
+  ylab("Reads") +
+  scale_color_manual(values=c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58"),
+                      name = "Ice thickness") +
+  theme_bw() +
+  theme(
+    axis.title.y = element_text(size=11),
+    axis.text.y  = element_text(size=10),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    strip.text = element_blank(),
+    legend.position="top") +
+  guides(color=guide_legend(nrow=2,byrow=TRUE))
+
+initial_plot <- ggarrange(plot_reads, time_reads,
+                          labels = c("A", "B"),
+                          ncol = 2)
+initial_plot
+
+#ggsave("plot_reads_sample.png", initial_plot, dpi = 300, width = 200, height = 130, units = "mm")
+
+med <- plot_df %>%
+  dplyr::group_by(Ice.thickness) %>%
+  summarise(median(TotalReads))
+
+med
+```
+
+### Filtering by taxonomy
+
+```{r Filter by taxonomy}
+
+# Filter by taxonomy 
+
+# Show available ranks in the dataset
+rank_names(physeq.es)
+
+ # How many domains? (Kingdom in the taxonomy table)
+table(tax_table(physeq.es)[, "Kingdom"], exclude = NULL) 
+
+# How many Phyla?
+table(tax_table(physeq.es)[, "Phylum"], exclude = NULL) 
+
+# Remove known erroneous assignments
+
+esf <- subset_taxa (physeq.es, !is.na(Kingdom) | (Kingdom !="Eukaryota")) # we remove Eukaryota and NA
+esf <- subset_taxa (esf, is.na(Order) | Order !="Chloroplast") # we remove Chloroplast
+esf <- subset_taxa (esf, is.na(Family) | Family != "Mitochondria") 
+
+esf
+
+reads <- rowSums(otu_table(esf))
+sum(reads)
+
+#get separate object with just photosynthesizers
+
+chlor <- transform_sample_counts(physeq.es, function(x) x / sum(x) )
+chlor <- subset_taxa (chlor, Phylum =="Cyanobacteriota")
+#Save version of physeq object, just chloroplasts/cyanos
+#saveRDS(chlor, "physeq.es.chlor")
+
+```
+
+```{r}
+otu_mat <- as(otu_table(esf), "matrix")
+rarecurve(otu_mat, step = 1000, col = "blue", label = TRUE)
+
+
+```
+
+```{r}
+#attempt to rarefy data because one sample has higher reads than other time points
+esf_rar <- rarefy_even_depth(esf)
+#rarefies to lowest sample depth, 24000 reads
+
+esf_rar_clr <- microbiome::transform(esf_rar, "clr")
+
+unifrac.esf.clr.rar <- phyloseq::distance(esf_rar_clr, method = "unifrac")
+esf.clr.mds.rar <- ordinate(esf_rar_clr, "MDS", distance = unifrac.esf.clr.rar)
+
+# final plot
+pcoa.esf.clr.rar <- plot_ordination(esf_rar_clr, esf.clr.mds.rar, 
+                shape="Ice.thickness") +
+  geom_point(aes(fill=Dist.from.bottom), size=5,
+             alpha = 0.9) +
+  #geom_text(label = rownames(esf.clr.mds.rar$vectors),
+   #         nudge_x = 0.01, nudge_y = 0.01, 
+    #        check_overlap = T) +
+  theme_bw() +
+  theme(
+    axis.title.x = element_text (size=11),
+    axis.text.x  = element_text(size=10),
+    axis.title.y = element_text(size=11),
+    axis.text.y  = element_text(size=10),
+    legend.text = element_text(size=10),
+    legend.title = element_text(size=10),
+    legend.position = "right",
+    legend.box = "vertical") +
+  scale_fill_viridis_c(option = "rocket", name = "Dist. from bottom (cm)") +
+  scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
+  guides(color = guide_colorbar(title.position = "top"))  # <-- continuous guide
+
+pcoa.esf.clr.rar
+
+#non-rarefied data
+esf.clr <- microbiome::transform(esf, "clr")
+unifrac.esf.clr <- phyloseq::distance(esf.clr, method = "unifrac")
+esf.clr.mds <- ordinate(esf.clr, "MDS", distance = unifrac.esf.clr)
+
+# final plot
+pcoa.esf.clr<- plot_ordination(esf.clr, esf.clr.mds, 
+                shape="Ice.thickness") +
+  geom_point(aes(fill=Dist.from.bottom), size=5,
+             alpha = 0.9) +
+  #geom_text(label = rownames(esf.clr.mds$vectors),
+   #         nudge_x = 0.01, nudge_y = 0.01, 
+    #        check_overlap = T) +
+  theme_bw() +
+  theme(
+    axis.title.x = element_text (size=11),
+    axis.text.x  = element_text(size=10),
+    axis.title.y = element_text(size=11),
+    axis.text.y  = element_text(size=10),
+    legend.text = element_text(size=10),
+    legend.title = element_text(size=10),
+    legend.position = "right",
+    legend.box = "vertical") +
+  scale_fill_viridis_c(option = "rocket", name = "Dist. from bottom (cm)") +
+  scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
+  guides(color = guide_colorbar(title.position = "top"))  # <-- continuous guide
+
+pcoa.esf.clr
+
+pcoa.esf.clr | pcoa.esf.clr.rar
+```
+
+
+
+```{r}
+#Save final version of physeq object, with contaminants removed and CLR abundance adjusted
+esfr <- microbiome::transform(esf, "clr")
+saveRDS(esfr, "physeq.es.clr")
+
+#Save version of physeq object, with contaminants removed but not normalized
+saveRDS(esf, "physeq.es.cont")
+
+#Save version of physeq object, with contaminants removed and normalized to relative abundance
+esfa<- transform_sample_counts(esf, function(x) x / sum(x) )
+saveRDS(esfa, "physeq.es.rel")
+
+###rarefied data
+esf_rar_clr <- microbiome::transform(esf_rar, "clr")
+saveRDS(esf_rar_clr, "physeq.es.clr.rar")
+
+#Save version of physeq object, with contaminants removed but not normalized
+saveRDS(esf_rar, "physeq.es.cont.rar")
+
+#Save version of physeq object, with contaminants removed and normalized to relative abundance
+esf_rar_a<- transform_sample_counts(esf_rar, function(x) x / sum(x) )
+saveRDS(esf_rar_a, "physeq.es.rel.rar")
+```
+
+```{r}
+#How many ASVs across all samples are Bacteria vs Archaea?
+
+table(tax_table(esfr)[, "Kingdom"], exclude = NULL) 
+  
+```
+

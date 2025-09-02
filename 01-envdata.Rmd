@@ -1,0 +1,70 @@
+---
+title: "TBR01.1_EnvData_Investigation"
+author: "Trine"
+date: "2024-04-13"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE, 
+                      warning = FALSE,
+                      fig.align = "center",
+                      fig.width = 10,
+                      fig.height = 6)
+```
+
+
+```{r Libraries and seed}
+
+# Libraries
+library("tidyverse")       # data wrangling and visualisation   
+library("corrplot")        # graphical display of a correlation matrix
+library("GGally")          # ggplot2 extension for plots - inspect several plots together
+library("vegan")           # multivariate analysis
+library("patchwork")       # arrange plots
+library ("cowplot")        # set a theme
+library("here")            # set the path to the folder 
+library("viridis")          # for color palettes
+library("ggpubr")         # for arranging plots
+library("reshape2")
+
+set.seed(57)
+```
+
+
+##### Overview of the data
+```{r}
+
+#load data
+envdata  <-  read.csv("sample_data.csv", header = TRUE, row.names = 1) %>%
+  dplyr::select(-Date, -Days.since.start.freeze, -Depth.bin, -Depth)
+
+envdata.m <- melt(envdata, c("Ice.thickness", "Dist.from.bottom"))
+
+envdata.m$Ice.thickness.cm <- as.factor(envdata.m$Ice.thickness)
+
+envdata.m <- envdata.m[order(envdata.m$variable, 
+                             envdata.m$Ice.thickness.cm, 
+                             envdata.m$Dist.from.bottom), ]
+
+envdata_plot <- ggplot(envdata.m, aes(x = Dist.from.bottom, y = value, color = Ice.thickness)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 0.5) +
+  theme_bw() +
+  theme(legend.position = "top") +
+  labs(color = "Ice Thickness", y = NULL, x = "Distance from bottom (cm)") +
+  scale_color_manual(values = c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58")) +
+  facet_wrap(. ~ variable, nrow = 3, scales = "free_x",
+             labeller = as_labeller(c(DO = "Dissolved Oxygen (%)", 
+                                      Conductivity.mS = "Conductivity (mS)",
+                                      Temperature = "Temperature (\u00B0C)"))) +
+  expand_limits(x = 0) + # Ensures y starts at 0 in all facets
+  coord_flip()
+
+envdata_plot
+
+#ggsave("ES_env.svg", envdata_plot, width = 180, height = 200, units = "mm",dpi = 300)
+#ggsave("ES_env.png", envdata_plot, width = 180, height = 200, units = "mm",dpi = 300)
+```
