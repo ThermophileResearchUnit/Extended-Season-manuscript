@@ -55,7 +55,45 @@ esfclr_meco$sample_table <- data.frame(envdata)
 
 t1 <- trans_env$new(dataset = esfa_meco, env_cols = c(6:9))
 t1$cal_autocor()
+```
 
+```{r}
+#Look for correlations between environmental factors using more robust method
+env <- envdata[6:9]
+numeric_columns <- env[sapply(env, is.numeric)]
+
+# Create an empty list to store results
+correlation_results <- list()
+
+# Loop through each pair of numerical columns
+for (i in 1:(ncol(numeric_columns) - 1)) {
+  for (j in (i + 1):ncol(numeric_columns)) {
+    # Calculate correlation test
+    corr_test <- cor.test(numeric_columns[, i], numeric_columns[, j], method = "spearman")
+    
+    # Store results in a list
+    correlation_results <- c(correlation_results, list(
+      c(colnames(numeric_columns)[i], colnames(numeric_columns)[j], corr_test$estimate, corr_test$p.value)
+    ))
+  }
+}
+
+# Convert the list to a data frame
+correlation_df <- as.data.frame(do.call(rbind, correlation_results))
+colnames(correlation_df) <- c("Variable_1", "Variable_2", "Correlation_Coefficient", "P_Value")
+
+# Perform Benjamini-Hochberg adjustment
+correlation_df$Adjusted_P_Value <- p.adjust(correlation_df$P_Value, method = "BH")
+correlation_df2 <- correlation_df %>%
+  dplyr::mutate(significance = case_when(
+    Adjusted_P_Value < 0.001 ~ "***",
+    Adjusted_P_Value < 0.01 ~ "**",
+    Adjusted_P_Value < 0.05 ~ "*",
+    TRUE ~ ""
+  ))
+
+correlation_df2
+#write.csv(correlation_df2, "Table S3.csv")
 ```
 
 

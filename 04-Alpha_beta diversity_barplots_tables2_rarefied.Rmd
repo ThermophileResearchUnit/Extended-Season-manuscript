@@ -97,7 +97,7 @@ pcoa.esf.clr.rar.d<- plot_ordination(esf.clr.rar, esf.clr.rar.mds,
     legend.title = element_text(size=10),
     legend.position = "right",
     legend.box = "vertical") +
-  scale_fill_viridis_c(option = "plasma", name = "Dissolved Oxygen (%)") +
+  scale_fill_viridis_c(option = "plasma", name = "Dissolved Oxygen (mg/L)") +
   scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
   guides(color = guide_colorbar(title.position = "top"))  # <-- continuous guide
 
