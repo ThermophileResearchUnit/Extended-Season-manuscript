@@ -34,33 +34,64 @@ library(stringr)
 
 set.seed(57)
 
-###Using rarefied data
 ```
 
 ```{r}
-# Load the final phyloseq object, with contaminants removed and CLR abundance adjusted
-esf.clr.rar <- readRDS("physeq.es.clr.rar")
-
-#Load version of physeq object, with contaminants removed but not normalized, for alpha diversity analysis
+#Load version of physeq object, with contaminants removed but not normalized but also rarefied, for alpha diversity analysis
 esf.rar <- readRDS("physeq.es.cont.rar")
 
+#Load version of physeq object, with contaminants removed but not normalized
+esf <- readRDS("physeq.es.cont")
+
 #Load version of physeq object, with contaminants removed and relative abundance normalized
-esfrel.rar <- readRDS("physeq.es.rel.rar")
+esfrel <- readRDS("physeq.es.rel")
 
 ```
+
+
+```{r alpha diversity}
+#inspect alpha diversity of samples
+
+#comparing ice thickness (i.e. seasonality)
+
+shannon_plot <- plot_richness(esf.rar, x="Ice.thickness",  measures=c("Shannon"))  +
+  geom_boxplot(aes(color = Ice.thickness)) +
+  geom_jitter(size = 2) +
+  ylab("Shannon\nIndex") +
+  scale_color_manual(values=c("#addd8e", "#41b6c4", "#225ea8", "#081d58"),
+                      name = "Ice thickness") +
+  theme_bw() +
+  theme(
+    axis.title.y = element_text(size=11),
+    axis.text.y  = element_text(size=10),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    strip.text = element_blank(),
+    legend.position="top") +
+  stat_pwc(method = "wilcox_test", p.adjust.method = "BH") +
+  guides(color=guide_legend(nrow=2,byrow=TRUE))
+
+shannon_plot
+
+### no sig diffs
+
+
+```
+
 
 
 ```{R beta diversity}
 #Prepare data for PCoA plotting
-unifrac.esf.clr.rar <- phyloseq::distance(esf.clr.rar, method = "unifrac")
-esf.clr.rar.mds <- ordinate(esf.clr.rar, "MDS", distance = unifrac.esf.clr.rar)
+unifrac.esf.rel <- phyloseq::distance(esfrel, method = "unifrac")
+esf.rel.mds <- ordinate(esfrel, "MDS", distance = unifrac.esf.rel)
 
 # final plot
-pcoa.esf.clr.rar<- plot_ordination(esf.clr.rar, esf.clr.rar.mds, 
+pcoa.esf.rel<- plot_ordination(esfrel, esf.rel.mds, 
                 shape="Ice.thickness") +
   geom_point(aes(fill=Dist.from.bottom), size=5,
              alpha = 0.9) +
-  #geom_text(label = rownames(esf.clr.rar.mds$vectors),
+  #geom_text(label = rownames(esf.rel.mds$vectors),
    #         nudge_x = 0.01, nudge_y = 0.01, 
     #        check_overlap = T) +
   theme_bw() +
@@ -73,18 +104,20 @@ pcoa.esf.clr.rar<- plot_ordination(esf.clr.rar, esf.clr.rar.mds,
     legend.title = element_text(size=10),
     legend.position = "right",
     legend.box = "vertical") +
-  scale_fill_viridis_c(option = "rocket", name = "Dist. from bottom (cm)") +
-  scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
+  scale_fill_gradientn(colors = c("black", "#ca0020", "white"),
+  name = "Dist. from\nbottom (cm)") +
+  #scale_fill_viridis_c(option = "rocket", name = "Dist. from bottom (cm)") +
+  scale_shape_manual(values = c(21, 22, 23, 24), guide = "none") +
   guides(color = guide_colorbar(title.position = "top"))  # <-- continuous guide
 
-pcoa.esf.clr.rar
+pcoa.esf.rel
 
 ###DO
-pcoa.esf.clr.rar.d<- plot_ordination(esf.clr.rar, esf.clr.rar.mds, 
+pcoa.esf.rel.d<- plot_ordination(esfrel, esf.rel.mds, 
                 shape="Ice.thickness") +
   geom_point(aes(fill=DO), size=5,
              alpha = 0.9) +
-  #geom_text(label = rownames(esf.clr.rar.mds$vectors),
+  #geom_text(label = rownames(esf.rel.mds$vectors),
    #         nudge_x = 0.01, nudge_y = 0.01, 
     #        check_overlap = T) +
   theme_bw() +
@@ -97,18 +130,18 @@ pcoa.esf.clr.rar.d<- plot_ordination(esf.clr.rar, esf.clr.rar.mds,
     legend.title = element_text(size=10),
     legend.position = "right",
     legend.box = "vertical") +
-  scale_fill_viridis_c(option = "plasma", name = "Dissolved Oxygen (mg/L)") +
-  scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
+  scale_fill_viridis_c(option = "plasma", name = "Dissolved\nOxygen (mg/L)") +
+  scale_shape_manual(values = c(21, 22, 23, 24), guide = "none") +
   guides(color = guide_colorbar(title.position = "top"))  # <-- continuous guide
 
-pcoa.esf.clr.rar.d
+pcoa.esf.rel.d
 
 ###Conductivity
-pcoa.esf.clr.rar.c<- plot_ordination(esf.clr.rar, esf.clr.rar.mds, 
+pcoa.esf.rel.c<- plot_ordination(esfrel, esf.rel.mds, 
                 shape="Ice.thickness") +
   geom_point(aes(fill=Conductivity.mS), size=5,
              alpha = 0.9) +
-  #geom_text(label = rownames(esf.clr.rar.mds$vectors),
+  #geom_text(label = rownames(esf.rel.mds$vectors),
    #         nudge_x = 0.01, nudge_y = 0.01, 
     #        check_overlap = T) +
   theme_bw() +
@@ -125,58 +158,9 @@ pcoa.esf.clr.rar.c<- plot_ordination(esf.clr.rar, esf.clr.rar.mds,
   scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
   guides(color = guide_colorbar(title.position = "top"))  # <-- continuous guide
 
-pcoa.esf.clr.rar.c
+pcoa.esf.rel.c
 
 
-```
-
-```{r alpha diversity}
-#inspect alpha diversity of samples
-
-#comparing ice thickness (i.e. seasonality)
-
-shannon_plot <- plot_richness(esf.rar, x="Ice.thickness",  measures=c("Shannon"))  +
-  geom_boxplot(aes(color = Ice.thickness)) +
-  geom_jitter(size = 2) +
-  ylab("Shannon\nIndex") +
-  scale_color_manual(values=c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58"),
-                      name = "Ice thickness") +
-  theme_bw() +
-  theme(
-    axis.title.y = element_text(size=11),
-    axis.text.y  = element_text(size=10),
-    axis.ticks.x = element_blank(),
-    axis.text.x = element_blank(),
-    axis.title.x = element_blank(),
-    strip.text = element_blank(),
-    legend.position="top") +
-  stat_pwc(method = "wilcox_test", p.adjust.method = "BH") +
-  guides(color=guide_legend(nrow=2,byrow=TRUE))
-
-shannon_plot
-
-### 13cm is significantly less rich than 50cm
-
-####Comparing depth bins
-
-shannon_plot2 <- plot_richness(esf.rar, x="Depth.bin",  measures=c("Shannon"))  +
-  geom_boxplot(aes(color = Depth.bin)) +
-  geom_jitter(size = 2) +
-  ylab("Shannon\nIndex") +
-  scale_color_manual(values=c("grey", "blue", "red"),
-                      name = "Depth bin") +
-  theme_bw() +
-  theme(
-    axis.title.y = element_text(size=11),
-    axis.text.y  = element_text(size=10),
-    axis.ticks.x = element_blank(),
-    axis.text.x = element_blank(),
-    axis.title.x = element_blank(),
-    strip.text = element_blank(),
-    legend.position="top") +
-  stat_pwc(method = "wilcox_test", p.adjust.method = "BH")
-
-shannon_plot2
 ```
 
 ```{r PERMANOVA}
@@ -188,22 +172,26 @@ shannon_plot2
 
 # Create a data frame with the environmental data 
 envdata <-  read.csv("sample_data.csv", header = TRUE)
-unifrac.esf.clr.rar.mat <- as.matrix(unifrac.esf.clr.rar)
+unifrac.esf.rel.mat <- as.matrix(unifrac.esf.rel)
 
 # PERMANOVA on ice thickness (i.e., season time point)
-adonis2(unifrac.esf.clr.rar ~ Ice.thickness, data = envdata)
+adonis2(unifrac.esf.rel ~ Ice.thickness, data = envdata)
 
 #dispersion test
-disp.site<- betadisper(unifrac.esf.clr.rar, envdata$Ice.thickness)
+disp.site<- betadisper(unifrac.esf.rel, envdata$Ice.thickness)
 permutest(disp.site)
 
 # PERMANOVA on depth
-adonis2(unifrac.esf.clr.rar ~ Dist.from.bottom, data = envdata)
-disp.site<- betadisper(unifrac.esf.clr.rar, envdata$Ice.thickness)
+adonis2(unifrac.esf.rel ~ Dist.from.bottom, data = envdata)
+disp.site<- betadisper(unifrac.esf.rel, envdata$Dist.from.bottom)
 permutest(disp.site)
 
 # We see that Depth, but not Ice thickness, returned a significant PERMANOVA and non-significant permutation test
 
+#stronger correlation when doing mixolimnion vs. chemocline
+adonis2(unifrac.esf.rel ~ Depth.bin, data = envdata)
+disp.site<- betadisper(unifrac.esf.rel, envdata$Depth.bin)
+permutest(disp.site)
 
 ```
 
@@ -217,7 +205,7 @@ pal_barnf <- c("black", pal_barn, "grey")
 
 #plot aggregated
 
-merged_group <- phyloseq::merge_samples(esf.rar,group = "Ice.thickness")
+merged_group <- phyloseq::merge_samples(esf,group = "Ice.thickness")
 merged_groupa<- transform_sample_counts(merged_group, function(x) x / sum(x) )
 
 # Data for plotting
@@ -281,7 +269,7 @@ pal_barnf_p <- c("black", pal_barn)
 
 ## Phylum abundance plot
 # Data for plotting
-es_p <- esfrel.rar %>% psmelt() %>%
+es_p <- esfrel %>% psmelt() %>%
   select(Sample, Dist.from.bottom, Ice.thickness, Phylum, Abundance)
 
 # Step 1: find max abundance per Phylum across samples
@@ -342,12 +330,12 @@ plot_phylum
 ## Class abundance plot
 # Data for plotting
 
-pal_barn2 <- RColorBrewer::brewer.pal(4, "Oranges")
-pal_barn3 <- RColorBrewer::brewer.pal(4, "YlGn")
-pal_barn4 <- RColorBrewer::brewer.pal(3, "Purples")
-pal_barnf_c <- c("black", pal_barn2, pal_barn3, pal_barn4)
+pal_barn2 <- RColorBrewer::brewer.pal(6, "PuOr")
+pal_barn3 <- RColorBrewer::brewer.pal(4, "RdGy")
+#pal_barn4 <- RColorBrewer::brewer.pal(3, "Purples")
+pal_barnf_c <- c("black", pal_barn2, pal_barn3)
 
-es_c <- esfrel.rar %>% psmelt() %>%
+es_c <- esfrel %>% psmelt() %>%
   select(Dist.from.bottom, Ice.thickness, Class, Abundance)
 
 # Step 1: find max abundance per Phylum across samples
@@ -356,24 +344,24 @@ class_max <- es_c %>%
   summarise(max_abund = max(Abundance, na.rm = TRUE))
 
 # Step 2: identify "rare" classes
-rare_classes <- class_max$Class[class_max$max_abund < 0.005]
+rare_classes <- class_max$Class[class_max$max_abund < 0.01]
 
 # Step 3: relabel
 es_c <- es_c %>%
-  mutate(Class = ifelse(Class %in% rare_classes, "Class < 0.5 %", Class),
+  mutate(Class = ifelse(Class %in% rare_classes, "Class < 1 %", Class),
          Class = ifelse(is.na(Class), "Unassigned", Class))
 
 
-#Reorder class so <0.5% is first, then alphabetical
+#Reorder class so <X% is first, then alphabetical
 list <- es_c$Class %>%
   unique(.) %>%
   as.data.frame(.) %>%
   filter(., . != "Unassigned") %>%
-  filter(., . != "Class < 0.5 %") %>%
+  filter(., . != "Class < 1 %") %>%
   unlist(., use.names=FALSE) %>%
   sort(.)
 
-x <- c("Class < 0.5 %", list, "Unassigned")
+x <- c("Class < 1 %", list, "Unassigned")
 
 es_c$Class <- factor(as.character(es_c$Class), levels=x)
 es_c <- es_c[order(es_c$Class),]
@@ -409,49 +397,46 @@ plot_class
 ```{r}
 #final plot: no alpha diversity
 
-beta_bara <- ggarrange(pcoa.esf.clr.rar, plot_phylum_a,
-                       labels = c("A", "B"),
-                       ncol = 2,
-                       widths = c(1, 0.5))
+pcoa1 <- ggarrange(pcoa.esf.rel, pcoa.esf.rel.c,
+          labels = c("A", "B"),
+          ncol = 2, nrow = 1)
+
+pcoa1
+
+
+beta_bara <- ggarrange(pcoa.esf.rel.d, plot_phylum_a,
+                       labels = c("C", "D"),
+                       ncol = 2)
 
 beta_bara
 
 bar2 <- ggarrange(plot_phylum,
                            plot_class,
-                          labels = c("C", "D"),
+                          labels = c("E", "F"),
                           ncol = 2, nrow = 1)
 
 
-bio_div_plot2 <- ggarrange(beta_bara, bar2,
-                          labels = c("", ""),
-                          ncol = 1, nrow = 2,
-                          heights = c(0.6, 1))
+bio_div_plot2 <- ggarrange(pcoa1, beta_bara, bar2,
+                          labels = c("", "", ""),
+                          ncol = 1, nrow = 3,
+                          heights = c(0.6, 0.6, 1))
 
 bio_div_plot2
 
-#ggsave("Figure3.png", plot = bio_div_plot2, dpi = 300, width = 240, height = 280, units = "mm")
-#ggsave("Figure3.svg", plot = bio_div_plot2, dpi = 300, width = 240, height = 280, units = "mm")
+#ggsave("Figure3.png", plot = bio_div_plot2, dpi = 300, width = 240, height = 330, units = "mm")
+#ggsave("Figure3.svg", plot = bio_div_plot2, dpi = 300, width = 240, height = 330, units = "mm")
 
 ##################
-alphas <- ggarrange(shannon_plot, shannon_plot2,
-          labels = c("A", "B"),
-          ncol = 2, nrow = 1)
+#alpha diversity
 
-alphas
+#ggsave("FigureS3.png", plot = shannon_plot, dpi = 300, width = 100, height = 100, units = "mm")
+#ggsave("FigureS3.svg", plot = shannon_plot, dpi = 300, width = 100, height = 100, units = "mm")
 
-#ggsave("FigureS4.png", plot = alphas, dpi = 300, width = 200, height = 100, units = "mm")
-#ggsave("FigureS4.svg", plot = alphas, dpi = 300, width = 200, height = 100, units = "mm")
 
-####Sup fig
-
-extra_pcoa <- ggarrange(pcoa.esf.clr.rar.c, pcoa.esf.clr.rar.d,
-          labels = c("A", "B"),
-          ncol = 1, nrow = 2)
-
-extra_pcoa
-#ggsave("FigureS3.png", plot = extra_pcoa, dpi = 300, width = 200, height = 200, units = "mm")
-#ggsave("FigureS3.svg", plot = extra_pcoa, dpi = 300, width = 200, height = 200, units = "mm")
 ```
+
+
+
 ```{r}
 #look at abundances of photosynthesizers
 chlor <- readRDS("physeq.es.chlor")
@@ -553,7 +538,7 @@ heatmap_asv
 library(pheatmap)
 library(RColorBrewer)          # for color palettes
 
-nanos <- readRDS("physeq.es.rel.rar")
+nanos <- readRDS("physeq.es.rel")
 
 #Look at the abundance profile of whatever ASVs you want to using heatmaps
 es.nan.heat <- nanos %>%
@@ -585,7 +570,7 @@ es.nan.heat.filt$News = paste(
 
 phyla_abund_m <- es.nan.heat.filt %>%
   dplyr::select(ASV_Phylum, Abundance, News) %>%
-  dplyr::filter(Abundance > 0.01)
+  dplyr::filter(Abundance > 0.1)
 
 p_a_f <- reshape2::dcast(phyla_abund_m, ASV_Phylum ~ News, value.var = "Abundance", fill = 0) %>%
   data.frame(., row.names = 1)
@@ -622,22 +607,30 @@ pheatmap(p_a_f_m,
          annotation_colors = ann_colors,
          fontsize = 7,
          width = 7,
-         height = 10,
-         filename = "FigureS5.png")
+         height = 4,
+         filename = "FigureS4.png")
 
+#Get relative abundance at each ice thickness of Nanoarchaeota
 
 nano_num <- es.nan.heat.filt %>%
   dplyr::group_by(Ice.thickness) %>%
   summarise(sum(Abundance))
 
-nano_num # Divide each by num of samples: 13cm: 5; 28 and rest: 6
+# Divide each by num of samples: 13cm: 5; 28 and rest: 6
+nano_num$divide <- c(5, 6, 6, 6)
+
+nano_num2 <- nano_num %>%
+  dplyr::mutate(prop = `sum(Abundance)` / divide)
+
+nano_num2$prop
+
 ```
 
 
 ```{r}
-#generate Table S1
+#generate Table S3
 library(Biostrings)
-otu_table <- data.frame(otu_table(esfrel.rar)) %>%
+otu_table <- data.frame(otu_table(esfrel)) %>%
   rownames_to_column(var = "Sample")
 
 library(data.table)
@@ -646,7 +639,7 @@ otu_long <- data.table::transpose(setDT(otu_table), make.names = 'Sample',
   as.data.frame(.) %>%
   dplyr::rename(ASV = 1)
 
-tax_table <- data.frame(tax_table(esfrel.rar)) %>%
+tax_table <- data.frame(tax_table(esfrel)) %>%
   rownames_to_column(var = "ASV")
 
 # load the sequences from the file
@@ -663,5 +656,31 @@ full_df <- tax_table %>%
   left_join(otu_long, by = "ASV") %>%
   left_join(otu_seqs, by = "ASV")
 
-#write.csv(full_df, "Table S2.csv")
+#write.csv(full_df, "Table S3.csv")
+
+# Create DNAStringSet object
+sequences <- DNAStringSet(full_df$Sequence)
+names(sequences) <- full_df$ASV
+
+# Write FASTA file
+#writeXStringSet(sequences, "es_illumina_trimmed_ASVs_nochim.fasta")
+
+#fixing genbank submission
+
+genb <- read.table("source_modifiers.tsv", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+
+full_df <- full_df %>%
+  dplyr::rename("Sequence_ID" = "ASV")
+
+genb2 <- left_join(genb, full_df, by = "Sequence_ID")
+
+genb3 <- genb2 %>%
+  dplyr::mutate(Organism = case_when(
+    Kingdom == "Bacteria" ~ "uncultured aquatic bacterium",
+    Kingdom == "Archaea" ~ "uncultured aquatic archaeon",
+    TRUE ~ NA_character_  # for any other values
+  )) %>%
+  dplyr::select(c(1:6))
+
+#write.table(genb3, "source_modifiers2.tsv", sep = "\t", row.names = FALSE, quote = FALSE)
 ```

@@ -38,9 +38,9 @@ set.seed(57)
 
 
 ```{r}
-############ load data, using rarefied data
-esfclr <- readRDS("physeq.es.clr.rar")
-esfa <- readRDS("physeq.es.rel.rar")
+############ load data
+esfclr <- readRDS("physeq.es.clr")
+esfa <- readRDS("physeq.es.rel")
 envdata <-  read.csv("sample_data.csv", header = TRUE) %>%
   column_to_rownames(., var = "Sample")
 
@@ -55,6 +55,8 @@ esfclr_meco$sample_table <- data.frame(envdata)
 
 t1 <- trans_env$new(dataset = esfa_meco, env_cols = c(6:9))
 t1$cal_autocor()
+
+t2 <- trans_env$new(dataset = esfclr_meco, env_cols = c(6:9))
 ```
 
 ```{r}
@@ -102,7 +104,7 @@ correlation_df2
 t1$cal_ordination(method = "dbRDA", use_measure = "bray")
 t1$trans_ordination(adjust_arrow_length = TRUE, max_perc_env = 1.5)
 t1$plot_ordination(plot_color = "Ice.thickness", plot_shape = "Ice.thickness", 
-                   shape_values = c(16, 15, 18, 17),  color_values = c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58"))
+                   shape_values = c(16, 15, 18, 17),  color_values = c("#addd8e", "#41b6c4", "#225ea8", "#081d58"))
 
 #Mantel test for correlations betw env parameters and microbial community, determine which factors are significant
 t1$cal_mantel(use_measure = "bray")
@@ -113,8 +115,8 @@ sig_facs
 
 #all are significant in this case; Conductivity has strongest correlation coefficient of 0.38
 
-dbrda_plot_f <- t1$plot_ordination(plot_color = "Ice.thickness", plot_shape = "Ice.thickness", 
-                   shape_values = c(16, 15, 18, 17),  color_values = c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58"))
+dbrda_plot_f <- t1$plot_ordination(plot_color = "Depth.bin", plot_shape = "Ice.thickness", 
+                   shape_values = c(16, 15, 18, 17),  color_values = c("#542788", "#e08214"))
 dbrda_plot_f
 ```
 
@@ -133,9 +135,9 @@ t1$trans_ordination(show_taxa = 5, adjust_arrow_length = TRUE, max_perc_env = 1,
 t1$res_ordination_trans
 # t1$res_rda_trans is the transformed result for plotting
 rda_plot <- t1$plot_ordination(plot_color = "Ice.thickness", plot_shape = "Ice.thickness", 
-                   shape_values = c(16, 15, 18, 17),  color_values = c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58")) 
+                   shape_values = c(16, 15, 18, 17),  color_values = c("#addd8e", "#41b6c4", "#225ea8", "#081d58")) 
 
-
+rda_plot
 ```
 
 ```{r}
@@ -170,79 +172,4 @@ cor_heats
 
 #ggsave("Figure5.png", cor_heats, width = 200, height = 200, units = "mm", dpi = 300)
 #ggsave("Figure5.svg", cor_heats, width = 200, height = 200, units = "mm", dpi = 300)
-```
-
-#############old code
-
-```{r box plots}
-# select parameters of interest: those that were significant (prior to adjustment),
-# as well as those of interest (added TOC, TON, TN, S)
-t_fin <- t1
-t_fin$cal_diff(method = "anova", group = "Ice.thickness")
-# place all the plots into a list
-tmp <- list()
-for(i in colnames(t_fin$data_env)){
-    tmp[[i]] <- t_fin$plot_diff(measure = i, add_sig_text_size = 3.5, xtext_size = 12,
-                             group_order = c("13 cm", "28 cm", "50 cm", "94 cm"), 
-                       color_values = c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58")) + 
-      theme(axis.text.x = element_blank(),
-            axis.title.y = element_text(size = 10),
-            axis.text.y = element_text(size = 10),
-            axis.ticks.x = element_blank(),
-        plot.margin = unit(c(0.1, 0, 0, 1), "cm"))
-}
-
-envplot <- ggarrange(plotlist = tmp, nrow = 2, ncol = 2,
-          common.legend = TRUE)
-
-envplot
-
-```
-
-
-```{r PCA all env data}
-#PCA of all env data
-# Select numeric data
-envdata_scl <- as.matrix(envdata[,6:9])
-envdata_scl<- scale(envdata_scl)
-
-# Calculate euclidean distances
-envdata.ord.dis <- vegdist(envdata_scl, method="euclidean", na.rm=TRUE)
-
-# PCoA
-pcoa.envdata.ord <- cmdscale(envdata.ord.dis, eig = T)
-
-# Create a dataframe to plot the PCoA 
-PCoA.envdata.ord <- data.frame(PCoA1 = pcoa.envdata.ord$points[,1], PCoA2 = pcoa.envdata.ord$points[,2])
-PCoA.envdata.ord.df<- merge(PCoA.envdata.ord , envdata, by="row.names", sort = F) %>%
-  column_to_rownames("Row.names")
-
-# How much % of the variance is explained by the axes?
-round(pcoa.envdata.ord$eig*100/sum(pcoa.envdata.ord$eig),1)
-pcoa.envdata.ord.values <- as.vector(round(pcoa.envdata.ord$eig*100/sum(pcoa.envdata.ord$eig),1))
-pcoa.envdata.ord.x <- paste("Axis 1 [", pcoa.envdata.ord.values[1], "%]")
-pcoa.envdata.ord.y <- paste("Axis 2 [", pcoa.envdata.ord.values[2], "%]")
-
-#plot
-pcoa.envdata<- ggplot(data = PCoA.envdata.ord.df, aes(x = PCoA1, y = PCoA2,
-                                       shape = Ice.thickness)) + 
-  geom_point(size = 3.5, aes(fill=Ice.thickness)) +
-  #geom_text(label = rownames(PCoA.envdata.ord.df),
-        #    nudge_x = 0.25, nudge_y = 0.25, 
-         #   check_overlap = T) +
-  labs(x = pcoa.envdata.ord.x, y = pcoa.envdata.ord.y) +
-  scale_fill_manual(values=c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58")) +
-  scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
-  theme_bw() +
-  theme(
-    axis.title.x = element_text(size=14),
-    axis.text.x  = element_text(size=14),
-    axis.title.y = element_text(size=14),
-    axis.text.y  = element_text(size=14),
-    strip.text = element_text(size=14),
-    strip.background = element_blank(),
-    legend.text = element_text(size=14),
-    legend.title = element_text(size=14))
-
-pcoa.envdata
 ```

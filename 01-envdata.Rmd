@@ -55,16 +55,17 @@ envdata_plot <- ggplot(envdata.m, aes(x = Dist.from.bottom, y = value, color = I
   theme_bw() +
   theme(legend.position = "top") +
   labs(color = "Ice Thickness", y = NULL, x = "Distance from bottom (cm)") +
-  scale_color_manual(values = c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58")) +
+  scale_color_manual(values = c("#addd8e", "#41b6c4", "#225ea8", "#081d58")) +
   facet_wrap(. ~ variable, nrow = 3, scales = "free_x",
-             labeller = as_labeller(c(DO = "Dissolved Oxygen (%)", 
+             labeller = as_labeller(c(DO = "Dissolved Oxygen (mg/L)", 
                                       Conductivity.mS = "Conductivity (mS)",
                                       Temperature = "Temperature (\u00B0C)"))) +
   expand_limits(x = 0) + # Ensures y starts at 0 in all facets
+  expand_limits(y = 0) + # Ensures x starts at 0 in all facets
   coord_flip()
 
 envdata_plot
 
-#ggsave("ES_env.svg", envdata_plot, width = 180, height = 200, units = "mm",dpi = 300)
-#ggsave("ES_env.png", envdata_plot, width = 180, height = 200, units = "mm",dpi = 300)
+#ggsave("Figure2_env.svg", envdata_plot, width = 180, height = 200, units = "mm",dpi = 300)
+#ggsave("Figure2_env.png", envdata_plot, width = 180, height = 200, units = "mm",dpi = 300)
 ```

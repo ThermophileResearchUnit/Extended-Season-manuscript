@@ -35,9 +35,63 @@ set.seed(57)
 
 ```{r Load the data}
 # Load the final phyloseq object from the DADA2 pipeline
-physeq.es <- readRDS("physeq.es")
+physeq.es0 <- readRDS("physeq.es")
 
+#remove chimeras identified by uchime
+uchime <- read.delim("uchime_out.txt", header = FALSE) %>%
+  dplyr::select(V2, V18) %>%
+  dplyr::rename("ASV" = V2) %>%
+  dplyr::filter(V18 == "Y")
+
+physeq.es <- subset_taxa(physeq.es0, 
+                                  !taxa_names(physeq.es0) %in% uchime$ASV)
+
+nrow(uchime)
+#19 ASVs removed
 ```
+
+```{r Filter by taxonomy}
+
+# Filter by taxonomy 
+
+# Show available ranks in the dataset
+rank_names(physeq.es)
+
+ # How many domains? (Kingdom in the taxonomy table)
+table(tax_table(physeq.es)[, "Kingdom"], exclude = NULL) 
+
+# How many Phyla?
+table(tax_table(physeq.es)[, "Phylum"], exclude = NULL) 
+
+# Remove known erroneous assignments
+
+esf <- subset_taxa (physeq.es, (Kingdom !="Eukaryota")) # we remove Eukaryota and NA
+esf <- subset_taxa (esf, is.na(Order) | Order !="Chloroplast") # we remove Chloroplast
+esf <- subset_taxa (esf, is.na(Family) | Family != "Mitochondria") 
+
+esf
+
+reads <- rowSums(otu_table(esf))
+sum(reads)
+
+#get separate object with just photosynthesizers
+
+chlor <- transform_sample_counts(physeq.es, function(x) x / sum(x) )
+chlor <- subset_taxa (chlor, Phylum =="Cyanobacteriota")
+#Save version of physeq object, just chloroplasts/cyanos
+#saveRDS(chlor, "physeq.es.chlor")
+
+physeq.m <- physeq.es %>% 
+  psmelt() 
+
+chlor.reads <- physeq.m %>%
+  dplyr::filter(Phylum == "Cyanobacteriota") %>%
+  dplyr::summarise(sum(Abundance))
+
+chlor.prop <- chlor.reads / sum(rowSums(otu_table(physeq.es)))
+chlor.prop
+```
+
 
 ### Sequences and ASVs data
 
@@ -45,10 +99,10 @@ physeq.es <- readRDS("physeq.es")
 
 # Inspect number of reads and ASVs
 
-colSums.asv.df <- data.frame(colSums(otu_table(physeq.es))) %>%
+colSums.asv.df <- data.frame(colSums(otu_table(esf))) %>%
   tibble::rownames_to_column("ASV")
 
-plot_asvs <- ggplot(colSums.asv.df, aes(x = reorder(ASV, -colSums.otu_table.physeq.es..), y = colSums.otu_table.physeq.es..)) + 
+plot_asvs <- ggplot(colSums.asv.df, aes(x = reorder(ASV, -colSums.otu_table.esf..), y = colSums.otu_table.esf..)) + 
   geom_bar(stat = "identity") +
   ylab("ASVs") +
   xlab("") +
@@ -59,11 +113,11 @@ plot_asvs <- ggplot(colSums.asv.df, aes(x = reorder(ASV, -colSums.otu_table.phys
 
 # Inspect number of sequences
 
-rowSums.asv.df <- data.frame(rowSums(otu_table(physeq.es))) %>%
+rowSums.asv.df <- data.frame(rowSums(otu_table(esf))) %>%
   rownames_to_column("Samples")
 
-plot_reads <- ggplot(rowSums.asv.df, aes(x = reorder(Samples, -rowSums.otu_table.physeq.es..), y =
-               rowSums.otu_table.physeq.es..)) +
+plot_reads <- ggplot(rowSums.asv.df, aes(x = reorder(Samples, -rowSums.otu_table.esf..), y =
+               rowSums.otu_table.esf..)) +
   geom_bar(stat = "identity") + 
   coord_flip() +
   ylab("Reads") +
@@ -73,18 +127,18 @@ plot_asvs | plot_reads
 
 summary1 <-
   list("ASVs" = 
-         list("min" = ~ min(colSums.otu_table.physeq.es..),
-            "median" = ~ median(colSums.otu_table.physeq.es..),
-            "max"  = ~ max(colSums.otu_table.physeq.es..))
+         list("min" = ~ min(colSums.otu_table.esf..),
+            "median" = ~ median(colSums.otu_table.esf..),
+            "max"  = ~ max(colSums.otu_table.esf..))
             )
 
 summary_table(colSums.asv.df, summary1)
 
 summary2 <-
   list("Reads" = 
-         list("min" = ~ min(rowSums.otu_table.physeq.es..),
-            "median" = ~ median(rowSums.otu_table.physeq.es..),
-            "max"  = ~ max(rowSums.otu_table.physeq.es..))
+         list("min" = ~ min(rowSums.otu_table.esf..),
+            "median" = ~ median(rowSums.otu_table.esf..),
+            "max"  = ~ max(rowSums.otu_table.esf..))
             )
 
 summary_table(rowSums.asv.df, summary2)
@@ -96,8 +150,8 @@ summary_table(rowSums.asv.df, summary2)
 sample_data_df <- read.csv("sample_data.csv")
 
 # Compute total reads per sample
-reads_per_sample <- data.frame(Sample = sample_names(physeq.es),
-                                TotalReads = sample_sums(physeq.es))
+reads_per_sample <- data.frame(Sample = sample_names(esf),
+                                TotalReads = sample_sums(esf))
 
 # Combine with sample metadata (including Ice.thickness)
 plot_df <- dplyr::left_join(sample_data_df, reads_per_sample, by = "Sample")
@@ -106,7 +160,7 @@ time_reads <- ggplot(plot_df, aes(x = Ice.thickness, y = TotalReads)) +
   geom_boxplot(aes(color = Ice.thickness)) +
   geom_jitter(size = 2) +
   ylab("Reads") +
-  scale_color_manual(values=c("#c7e9b4", "#41b6c4", "#225ea8", "#081d58"),
+  scale_color_manual(values=c("#addd8e", "#41b6c4", "#225ea8", "#081d58"),
                       name = "Ice thickness") +
   theme_bw() +
   theme(
@@ -135,62 +189,34 @@ med
 
 ### Filtering by taxonomy
 
-```{r Filter by taxonomy}
-
-# Filter by taxonomy 
-
-# Show available ranks in the dataset
-rank_names(physeq.es)
-
- # How many domains? (Kingdom in the taxonomy table)
-table(tax_table(physeq.es)[, "Kingdom"], exclude = NULL) 
-
-# How many Phyla?
-table(tax_table(physeq.es)[, "Phylum"], exclude = NULL) 
-
-# Remove known erroneous assignments
-
-esf <- subset_taxa (physeq.es, !is.na(Kingdom) | (Kingdom !="Eukaryota")) # we remove Eukaryota and NA
-esf <- subset_taxa (esf, is.na(Order) | Order !="Chloroplast") # we remove Chloroplast
-esf <- subset_taxa (esf, is.na(Family) | Family != "Mitochondria") 
-
-esf
-
-reads <- rowSums(otu_table(esf))
-sum(reads)
-
-#get separate object with just photosynthesizers
-
-chlor <- transform_sample_counts(physeq.es, function(x) x / sum(x) )
-chlor <- subset_taxa (chlor, Phylum =="Cyanobacteriota")
-#Save version of physeq object, just chloroplasts/cyanos
-#saveRDS(chlor, "physeq.es.chlor")
-
-```
-
 ```{r}
 otu_mat <- as(otu_table(esf), "matrix")
-rarecurve(otu_mat, step = 1000, col = "blue", label = TRUE)
+rarecurve(otu_mat, step = 1000, col = "blue", label = FALSE)
 
 
 ```
 
 ```{r}
 #attempt to rarefy data because one sample has higher reads than other time points
+
 esf_rar <- rarefy_even_depth(esf)
-#rarefies to lowest sample depth, 24000 reads
+#rarefies to lowest sample depth: 7044 reads
 
-esf_rar_clr <- microbiome::transform(esf_rar, "clr")
+rowSums.asv.df.rar <- data.frame(rowSums(otu_table(esf_rar))) %>%
+  rownames_to_column("Samples")
+max(rowSums.asv.df.rar$rowSums.otu_table.esf_rar..)
 
-unifrac.esf.clr.rar <- phyloseq::distance(esf_rar_clr, method = "unifrac")
-esf.clr.mds.rar <- ordinate(esf_rar_clr, "MDS", distance = unifrac.esf.clr.rar)
+esf_rar_rel <- transform_sample_counts(esf_rar, function(x) x / sum(x) )
+
+unifrac.esf.rel.rar <- phyloseq::distance(esf_rar_rel, method = "unifrac")
+esf.rel.mds.rar <- ordinate(esf_rar_rel, "MDS", distance = unifrac.esf.rel.rar)
 
 # final plot
-pcoa.esf.clr.rar <- plot_ordination(esf_rar_clr, esf.clr.mds.rar, 
+pcoa.esf.rel.rar <- plot_ordination(esf_rar_rel, esf.rel.mds.rar, 
                 shape="Ice.thickness") +
   geom_point(aes(fill=Dist.from.bottom), size=5,
              alpha = 0.9) +
-  #geom_text(label = rownames(esf.clr.mds.rar$vectors),
+  #geom_text(label = rownames(esf.rel.mds.rar$vectors),
    #         nudge_x = 0.01, nudge_y = 0.01, 
     #        check_overlap = T) +
   theme_bw() +
@@ -207,19 +233,19 @@ pcoa.esf.clr.rar <- plot_ordination(esf_rar_clr, esf.clr.mds.rar,
   scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
   guides(color = guide_colorbar(title.position = "top"))  # <-- continuous guide
 
-pcoa.esf.clr.rar
+pcoa.esf.rel.rar
 
 #non-rarefied data
-esf.clr <- microbiome::transform(esf, "clr")
-unifrac.esf.clr <- phyloseq::distance(esf.clr, method = "unifrac")
-esf.clr.mds <- ordinate(esf.clr, "MDS", distance = unifrac.esf.clr)
+esf.rel <- transform_sample_counts(esf, function(x) x / sum(x) )
+unifrac.esf.rel <- phyloseq::distance(esf.rel, method = "unifrac")
+esf.rel.mds <- ordinate(esf.rel, "MDS", distance = unifrac.esf.rel)
 
 # final plot
-pcoa.esf.clr<- plot_ordination(esf.clr, esf.clr.mds, 
+pcoa.esf.rel<- plot_ordination(esf.rel, esf.rel.mds, 
                 shape="Ice.thickness") +
   geom_point(aes(fill=Dist.from.bottom), size=5,
              alpha = 0.9) +
-  #geom_text(label = rownames(esf.clr.mds$vectors),
+  #geom_text(label = rownames(esf.rel.mds$vectors),
    #         nudge_x = 0.01, nudge_y = 0.01, 
     #        check_overlap = T) +
   theme_bw() +
@@ -236,9 +262,9 @@ pcoa.esf.clr<- plot_ordination(esf.clr, esf.clr.mds,
   scale_shape_manual(name = "Ice thickness", values = c(21, 22, 23, 24)) +
   guides(color = guide_colorbar(title.position = "top"))  # <-- continuous guide
 
-pcoa.esf.clr
+pcoa.esf.rel
 
-pcoa.esf.clr | pcoa.esf.clr.rar
+pcoa.esf.rel | pcoa.esf.rel.rar
 ```
 
 
